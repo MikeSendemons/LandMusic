@@ -18,3 +18,6 @@ Thumbs.db
 
 # 分发目录
 dist/
+
+# 构建脚本产物
+app/.android-build/
