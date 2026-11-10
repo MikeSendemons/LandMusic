@@ -10,8 +10,8 @@ import java.io.File
 object QmcDecoder {
 
     val ENCRYPTED_EXTENSIONS = setOf(
-        "mgg", "mgg0", "mgg1", "mggl",
-        "mflac", "mflac0", "mflach",
+        "mgg", "mgg0", "mgg1", "mgg2", "mggl",
+        "mflac", "mflac0", "mflac2", "mflach",
         "qmc0", "qmc2", "qmc3", "qmcflac", "qmcogg",
         "bkcmp3", "bkcflac", "tkm",
         "666c6163", "6d7033", "6f6767", "6d3461", "776177"
@@ -19,11 +19,22 @@ object QmcDecoder {
 
     private val EXT_FALLBACK = mapOf(
         "mgg" to "ogg", "mgg0" to "ogg", "mgg1" to "ogg", "mggl" to "ogg",
-        "mflac" to "flac", "mflac0" to "flac", "mflach" to "flac",
+        "mgg2" to "flac",
+        "mflac" to "flac", "mflac0" to "flac", "mflac2" to "flac", "mflach" to "flac",
         "qmcflac" to "flac", "qmcogg" to "ogg",
         "qmc0" to "mp3", "qmc2" to "ogg", "qmc3" to "mp3",
         "bkcmp3" to "mp3", "bkcflac" to "flac", "tkm" to "m4a"
     )
+
+    /** 双扩展名：xxx.mgg2.flac / xxx.mflac0.flac 等（真实扩展名在最后） */
+    private val DOUBLE_EXT_REGEX = Regex(
+        """\.(mgg\d*|mggl|mflac\d*|mflach|qmc\d+|qmcflac|qmcogg|bkcmp3|bkcflac|tkm)\.[a-z0-9]{2,5}$""",
+        RegexOption.IGNORE_CASE
+    )
+
+    /** QQ音乐会员加密文件缺少内嵌密钥（STag/MusicEx 布局），无法离线解密 */
+    class NeedsKeyException(val songId: String?, val songMid: String?) :
+        Exception("该文件为 QQ音乐会员加密格式（STag），文件内不含解密密钥")
 
     class Result(
         val audio: ByteArray,
@@ -31,10 +42,51 @@ object QmcDecoder {
         val songId: Long?
     )
 
-    fun isEncryptedFile(name: String): Boolean =
-        name.substringAfterLast('.', "").lowercase() in ENCRYPTED_EXTENSIONS
+    fun isEncryptedFile(name: String): Boolean {
+        if (name.substringAfterLast('.', "").lowercase() in ENCRYPTED_EXTENSIONS) return true
+        return DOUBLE_EXT_REGEX.containsMatchIn(name)
+    }
 
-    fun decrypt(file: File): Result = decrypt(file.readBytes(), file.extension.lowercase())
+    /** 文件名中的加密格式扩展名（双扩展名时取中间那段） */
+    private fun encryptedExtOf(name: String): String {
+        val m = DOUBLE_EXT_REGEX.find(name)
+        if (m != null) return m.groupValues[1].lowercase()
+        return name.substringAfterLast('.', "").lowercase()
+    }
+
+    /** STag 尾部布局探测结果：songId + songMid（用于后续获取 ekey） */
+    data class STagInfo(val songId: String?, val songMid: String?)
+
+    /** 只读文件尾部，探测是否为 STag 布局（不内嵌 ekey 的会员加密格式） */
+    fun probeSTag(file: File): STagInfo? {
+        runCatching {
+            java.io.RandomAccessFile(file, "r").use { raf ->
+                val size = raf.length()
+                if (size < 16) return null
+                val tail = ByteArray(8)
+                raf.seek(size - 8)
+                raf.readFully(tail)
+                if (String(tail, 4, 4, Charsets.US_ASCII) != "STag") return null
+                val keySize = TeaCipher.readU32BE(tail, 0)
+                if (keySize !in 1..0x300 || size - 8 - keySize < 0) return STagInfo(null, null)
+                val meta = ByteArray(keySize)
+                raf.seek(size - 8 - keySize)
+                raf.readFully(meta)
+                // 形如 "293430,2,0045NdiV2et0w0" -> songId, 版本, songMid
+                val parts = String(meta, Charsets.US_ASCII).split(',')
+                return STagInfo(
+                    songId = parts.getOrNull(0)?.takeIf { it.isNotBlank() },
+                    songMid = parts.getOrNull(2)?.takeIf { it.isNotBlank() },
+                )
+            }
+        }
+        return null
+    }
+
+    fun decrypt(file: File): Result {
+        probeSTag(file)?.let { throw NeedsKeyException(it.songId, it.songMid) }
+        return decrypt(file.readBytes(), encryptedExtOf(file.name))
+    }
 
     fun decrypt(file: ByteArray, rawExt: String): Result {
         val size = file.size

@@ -102,8 +102,7 @@ fun SearchScreen(
             ) {
                 items(results, key = { it.id }) { song ->
                     SongRow(song = song, onClick = {
-                        playerManager.playSingle(song, results)
-                        onOpenPlayer()
+                        if (playerManager.playSingle(song, results)) onOpenPlayer()
                     })
                 }
             }

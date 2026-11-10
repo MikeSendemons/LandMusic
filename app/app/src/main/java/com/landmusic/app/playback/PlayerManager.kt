@@ -118,22 +118,46 @@ class PlayerManager(private val app: Application) {
         }, MoreExecutors.directExecutor())
     }
 
-    fun playQueue(songs: List<Song>, startIndex: Int, shuffle: Boolean = false) {
-        if (songs.isEmpty()) return
+    /** @return true 表示已启动播放（UI 可跳转播放页）；false 表示被拦截 */
+    fun playQueue(songs: List<Song>, startIndex: Int, shuffle: Boolean = false): Boolean {
+        if (songs.isEmpty()) return false
+        val target = songs.getOrNull(startIndex)
+        if (target?.needsKey == true) {
+            toastNeedsKey(target)
+            return false
+        }
+        // 缺少密钥的会员加密文件无法播放，从队列中剔除
+        val playable = songs.filter { !it.needsKey }
+        if (playable.isEmpty()) return false
+        val newIndex = if (target != null) playable.indexOfFirst { it.id == target.id }.coerceAtLeast(0) else 0
+        if (playable.size < songs.size) {
+            android.widget.Toast.makeText(
+                app, "已跳过 ${songs.size - playable.size} 首缺少密钥的会员加密歌曲", android.widget.Toast.LENGTH_SHORT
+            ).show()
+        }
         ensureConnected {
             val c = controller ?: return@ensureConnected
-            songMap = songs.associateBy { it.id }
-            val items = songs.map { mediaItemFor(it) }
+            songMap = playable.associateBy { it.id }
+            val items = playable.map { mediaItemFor(it) }
             c.shuffleModeEnabled = shuffle
-            c.setMediaItems(items, startIndex.coerceIn(0, songs.lastIndex), 0L)
+            c.setMediaItems(items, newIndex.coerceIn(0, playable.lastIndex), 0L)
             c.prepare()
             c.play()
         }
+        return true
     }
 
-    fun playSingle(song: Song, queue: List<Song>) {
+    private fun toastNeedsKey(song: Song) {
+        android.widget.Toast.makeText(
+            app,
+            "《${song.title}》是 QQ音乐会员加密文件，本机缺少解密密钥，暂时无法播放",
+            android.widget.Toast.LENGTH_LONG
+        ).show()
+    }
+
+    fun playSingle(song: Song, queue: List<Song>): Boolean {
         val idx = queue.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
-        playQueue(if (queue.isEmpty()) listOf(song) else queue, idx)
+        return playQueue(if (queue.isEmpty()) listOf(song) else queue, idx)
     }
 
     fun togglePlayPause() {

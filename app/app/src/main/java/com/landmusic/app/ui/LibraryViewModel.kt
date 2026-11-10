@@ -26,7 +26,8 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
     val query: StateFlow<String> = _query.asStateFlow()
 
     val standardCount: Int get() = _songs.value.count { !it.isEncrypted }
-    val encryptedCount: Int get() = _songs.value.count { it.isEncrypted }
+    val encryptedCount: Int get() = _songs.value.count { it.isEncrypted && !it.needsKey }
+    val needsKeyCount: Int get() = _songs.value.count { it.needsKey }
 
     fun refresh() {
         if (_loading.value) return

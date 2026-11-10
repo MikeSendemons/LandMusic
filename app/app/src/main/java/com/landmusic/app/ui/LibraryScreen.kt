@@ -88,8 +88,7 @@ fun LibraryScreen(
             ) {
                 items(songs, key = { it.id }) { song ->
                     SongRow(song = song, onClick = {
-                        playerManager.playSingle(song, songs)
-                        onOpenPlayer()
+                        if (playerManager.playSingle(song, songs)) onOpenPlayer()
                     })
                 }
             }

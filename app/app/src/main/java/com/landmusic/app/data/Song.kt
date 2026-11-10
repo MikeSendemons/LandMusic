@@ -11,6 +11,8 @@ data class Song(
     val mediaUri: String?,   // MediaStore content uri（标准音频）
     val isEncrypted: Boolean,
     val dateAddedSec: Long,
+    val needsKey: Boolean = false,   // STag 会员加密：文件不含密钥，无法离线解密
+    val songMid: String? = null,     // QQ音乐 songMid（用于后续获取 ekey）
 ) {
     val isValid: Boolean get() = title.isNotBlank()
 }

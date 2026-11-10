@@ -69,7 +69,8 @@ fun HomeScreen(
             Spacer(Modifier.height(4.dp))
             Text(
                 text = "共 ${songs.size} 首" +
-                    if (viewModel.encryptedCount > 0) " · 含 ${viewModel.encryptedCount} 首已解锁加密歌曲" else "",
+                    (if (viewModel.encryptedCount > 0) " · ${viewModel.encryptedCount} 首加密已解锁" else "") +
+                    (if (viewModel.needsKeyCount > 0) " · ${viewModel.needsKeyCount} 首缺少密钥" else ""),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 16.dp),
@@ -222,8 +223,7 @@ fun HomeScreen(
             }
             items(songs.take(10), key = { "home_${it.id}" }) { song ->
                 SongRow(song = song, onClick = {
-                    playerManager.playSingle(song, songs)
-                    onOpenPlayer()
+                    if (playerManager.playSingle(song, songs)) onOpenPlayer()
                 })
             }
         }

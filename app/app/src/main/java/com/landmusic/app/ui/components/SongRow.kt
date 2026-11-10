@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -54,17 +55,19 @@ fun SongRow(
                     if (song.isEncrypted) {
                         Spacer(Modifier.width(6.dp))
                         Icon(
-                            imageVector = Icons.Rounded.Lock,
-                            contentDescription = "加密格式已解锁",
-                            tint = MaterialTheme.colorScheme.primary,
+                            imageVector = if (song.needsKey) Icons.Rounded.LockOpen else Icons.Rounded.Lock,
+                            contentDescription = if (song.needsKey) "缺少密钥" else "加密格式已解锁",
+                            tint = if (song.needsKey) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.primary,
                             modifier = Modifier.width(14.dp),
                         )
                     }
                 }
                 Text(
-                    text = song.artist,
+                    text = if (song.needsKey) "${song.artist} · 缺少密钥" else song.artist,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (song.needsKey) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

@@ -50,6 +50,8 @@ class MediaScanner(private val context: Context) {
                 while (c.moveToNext()) {
                     val id = c.getLong(idCol)
                     val path = c.getString(dataCol) ?: continue
+                    // 双扩展名加密文件（如 xxx.mgg2.flac）会被 MediaStore 误收为标准音频，这里排除
+                    if (QmcDecoder.isEncryptedFile(File(path).name)) continue
                     val uri = android.content.ContentUris.withAppendedId(
                         MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id
                     ).toString()
@@ -87,12 +89,19 @@ class MediaScanner(private val context: Context) {
                 dir.walkTopDown()
                     .maxDepth(4)
                     .filter { it.isFile && QmcDecoder.isEncryptedFile(it.name) }
-                    .forEach { found.putIfAbsent(it.absolutePath, it) }
+                    // /sdcard 大小写不敏感：qqmusic 与 QQMusic 是同一目录，用小写路径去重
+                    .forEach { found.putIfAbsent(it.absolutePath.lowercase(), it) }
             }
         }
         return found.values.map { f ->
-            val (artist, title) = parseQqFilename(f.nameWithoutExtension)
+            // 双扩展名时 nameWithoutExtension 仍带 ".mgg2" 等尾巴，先剥掉再解析
+            val baseName = f.name.replace(
+                Regex("""\.(mgg\d*|mggl|mflac\d*|mflach|qmc\d+|qmcflac|qmcogg|bkcmp3|bkcflac|tkm)(\.[a-z0-9]{2,5})?$""", RegexOption.IGNORE_CASE),
+                ""
+            )
+            val (artist, title) = parseQqFilename(baseName)
             val meta = metaCache.get(f.absolutePath)
+            val stag = QmcDecoder.probeSTag(f)
             Song(
                 id = "qmc_${MetadataCache.pathHash(f.absolutePath)}",
                 title = meta?.title ?: title,
@@ -103,6 +112,8 @@ class MediaScanner(private val context: Context) {
                 mediaUri = null,
                 isEncrypted = true,
                 dateAddedSec = f.lastModified() / 1000,
+                needsKey = stag != null,
+                songMid = stag?.songMid,
             )
         }
     }
