@@ -1,0 +1,9 @@
+{
+  "apk": "E:\\LandMusic\\app\\.android-build\\run-ktejhjw_\\app-debug.apk",
+  "source_apk": "E:\\LandMusic\\app\\app\\build\\outputs\\apk\\debug\\app-debug.apk",
+  "package": "com.landmusic.app",
+  "task": ":app:assembleDebug",
+  "build_log": "E:\\LandMusic\\app\\.android-build\\run-ktejhjw_\\build.log",
+  "sha256": "a825d5b728b0ac3c351d8c5d91fd34b15583e2e4a25fc04fdfc78f72e93c4d01",
+  "rendering": "unverified"
+}
